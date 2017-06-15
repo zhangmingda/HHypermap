@@ -95,7 +95,8 @@ DATABASES['default'] = dj_database_url.parse(DATABASE_URL, conn_max_age=600)
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'US/Eastern'
+#US/Estern, UTC, Asia/Shanghai
+TIME_ZONE = 'Asia/Shanghai'
 
 USE_I18N = True
 
