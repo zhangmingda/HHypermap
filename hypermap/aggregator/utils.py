@@ -117,6 +117,12 @@ def create_services_from_endpoint(url, catalog, greedy_opt=True):
         abstract = 'Harvard WorldMap'
         endpoint = domain
         detected = True
+    if domain == 'http://pelham.lib.harvard.edu:8080/':
+        service_type = 'Harvard:HGL'
+        title = 'Harvard HGL'
+        abstract = 'Harvard HGL'
+        endpoint = domain
+        detected = True
     if domain in [
         'http://maps.nypl.org/',
         'http://mapwarper.net/',

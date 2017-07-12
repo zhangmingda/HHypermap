@@ -328,6 +328,8 @@ class Service(Resource):
                 update_layers_wm(self)
             elif self.type == 'Hypermap:WARPER':
                 update_layers_warper(self)
+            elif self.type == 'Harvard:HGL':
+                update_layers_hgl(self)
 
         except:
             LOGGER.error('Error updating layers for service %s' % self.uuid)
@@ -1375,6 +1377,111 @@ def update_layers_wm(service, num_layers=None):
             layer.was_deleted = True
             layer.save()
             LOGGER.debug('Layer %s marked as deleted' % layer.uuid)
+
+
+def update_layers_hgl(service, num_layers=None):
+    """
+    Update layers for HGL.
+    Sample endpoint: http://pelham.lib.harvard.edu:8090/
+    """
+    hgl_json = 'http://pelham.lib.harvard.edu:8080/opengeoportal/solr/select?indent=true&wt=json&q=*:*'
+    if num_layers:
+        total = num_layers
+    else:
+        response = requests.get(hgl_json + '&rows=1&start=1')
+        data = json.loads(response.content)
+        total = data['response']['numFound']
+
+    service.update_validity()
+
+    layer_n = 0
+    limit = 10
+
+    for i in range(0, total, limit):
+        try:
+            url = (
+                    hgl_json + ('&rows=%s&start=%s' %(limit, i))
+            )
+            LOGGER.debug('Fetching %s' % url)
+            response = requests.get(url)
+            data = json.loads(response.content)
+            for row in data['response']['docs']:
+                name = row['Name']
+                uuid = row['LayerId']
+                LOGGER.debug('Updating layer %s' % name)
+                title = row['LayerDisplayName']
+                abstract = row['Abstract']
+                bbox = row['llbbox']
+                minX = row['MinX']
+                minY = row['MinY']
+                maxX = row['MaxX']
+                maxY = row['MaxY']
+                # page_url = 'http://worldmap.harvard.edu/data/%s' % name
+                temporal_extent_start = ''
+                if 'ContentDate' in row:
+                    temporal_extent_start = row['ContentDate']
+                # temporal_extent_end = ''
+
+                # we use the geoserver virtual layer getcapabilities for wm endpoint
+                # endpoint = 'http://worldmap.harvard.edu/geoserver/geonode/%s/wms?' % name
+                endpoint = ''
+                is_public = True
+                if 'Access' in row:
+                    is_public = row['Access'] == 'Public'
+                layer, created = Layer.objects.get_or_create(
+                    service=service, catalog=service.catalog, name=name, uuid=uuid)
+                if created:
+                    LOGGER.debug('Added a new layer in registry: %s, %s' % (name, uuid))
+                if layer.active:
+                    links = [['Harvard:HGL', endpoint]]
+                    # update fields
+                    layer.type = 'Harvard:HGL'
+                    layer.title = title
+                    layer.abstract = abstract
+                    layer.is_public = is_public
+                    layer.url = endpoint
+                    layer.temporal_extent_start = temporal_extent_start
+                    layer.save()
+                    # bbox [x0, y0, x1, y1]
+                    x0 = format_float(minX)
+                    y0 = format_float(minY)
+                    x1 = format_float(maxX)
+                    y1 = format_float(maxY)
+                    # In many cases for some reason to be fixed GeoServer has x coordinates flipped in WM.
+                    x0, x1 = flip_coordinates(x0, x1)
+                    y0, y1 = flip_coordinates(y0, y1)
+                    layer.bbox_x0 = x0
+                    layer.bbox_y0 = y0
+                    layer.bbox_x1 = x1
+                    layer.bbox_y1 = y1
+                    keywords = ''
+                    layer.wkt_geometry = bbox2wktpolygon([x0, y0, x1, y1])
+                    layer.xml = create_metadata_record(
+                        identifier=str(layer.uuid),
+                        source=endpoint,
+                        links=links,
+                        format='Harvard:HGL',
+                        type=layer.csw_type,
+                        relation=service.id_string,
+                        title=layer.title,
+                        alternative=name,
+                        abstract=layer.abstract,
+                        # keywords=keywords,
+                        wkt_geometry=layer.wkt_geometry
+                    )
+                    layer.anytext = gen_anytext(layer.title, layer.abstract, keywords)
+                    layer.save()
+                    # dates
+                    add_mined_dates(layer)
+                    add_metadata_dates_to_layer([layer.temporal_extent_start, layer.temporal_extent_end], layer)
+                    layer_n = layer_n + 1
+                    # exits if DEBUG_SERVICES
+                    LOGGER.debug("Updated layer n. %s/%s" % (layer_n, total))
+                    if DEBUG_SERVICES and layer_n == DEBUG_LAYER_NUMBER:
+                        return
+
+        except Exception as err:
+            LOGGER.error('Error! %s' % err)
 
 
 def update_layers_warper(service):
