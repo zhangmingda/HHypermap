@@ -1406,25 +1406,31 @@ def update_layers_hgl(service, num_layers=None):
             response = requests.get(url)
             data = json.loads(response.content)
             for row in data['response']['docs']:
+                url_location = row['Location']
+                # only get layers from HGL
+                if 'pelham.lib.harvard.edu' not in url_location:
+                    continue
+
                 name = row['Name']
                 uuid = row['LayerId']
                 LOGGER.debug('Updating layer %s' % name)
                 title = row['LayerDisplayName']
                 abstract = row['Abstract']
-                bbox = row['llbbox']
                 minX = row['MinX']
                 minY = row['MinY']
                 maxX = row['MaxX']
                 maxY = row['MaxY']
                 # page_url = 'http://worldmap.harvard.edu/data/%s' % name
+                page_url = 'http://hgl.harvard.edu:8080/opengeoportal/'
                 temporal_extent_start = ''
                 if 'ContentDate' in row:
                     temporal_extent_start = row['ContentDate']
-                # temporal_extent_end = ''
+                temporal_extent_end = ''
 
                 # we use the geoserver virtual layer getcapabilities for wm endpoint
                 # endpoint = 'http://worldmap.harvard.edu/geoserver/geonode/%s/wms?' % name
-                endpoint = ''
+                # layer from HGL
+                endpoint = 'http://pelham.lib.harvard.edu:8090/geoserver/%s/wms?' % name
                 is_public = True
                 if 'Access' in row:
                     is_public = row['Access'] == 'Public'
@@ -1441,6 +1447,7 @@ def update_layers_hgl(service, num_layers=None):
                     layer.is_public = is_public
                     layer.url = endpoint
                     layer.temporal_extent_start = temporal_extent_start
+                    layer.temporal_extent_end = temporal_extent_end
                     layer.save()
                     # bbox [x0, y0, x1, y1]
                     x0 = format_float(minX)

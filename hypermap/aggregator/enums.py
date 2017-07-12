@@ -7,6 +7,7 @@ SERVICE_TYPES = (
     ('ESRI:ArcGIS:ImageServer', 'ArcGIS REST ImageServer'),
     ('Hypermap:WorldMap', 'Harvard WorldMap'),
     ('Hypermap:WARPER', 'Mapwarper'),
+    ('Harvard:HGL', 'Harvard Geospatial Library'),
 )
 
 CSW_RESOURCE_TYPES = {
